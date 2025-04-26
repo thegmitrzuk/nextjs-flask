@@ -17,18 +17,6 @@ app = Flask(__name__)
 ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
-@app.route("/api/python")
-def hello_world():
-    return "<p>Hello, World!</p>"
-
-@app.route("/api/add", methods=['POST'])
-def add_numbers():
-    data = request.get_json()
-    num1 = float(data.get('num1', 0))
-    num2 = float(data.get('num2', 0))
-    result = num1 + num2
-    return jsonify({"result": result})
-
 @app.route("/api/save-agenda", methods=['POST'])
 def save_agenda():
     data = request.get_json()
