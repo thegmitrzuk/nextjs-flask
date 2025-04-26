@@ -117,10 +117,15 @@ export default function Home() {
   return (
     <main className="min-h-screen w-full bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex flex-col items-center p-6 sm:p-8">
       <div className="max-w-3xl w-full flex flex-col items-center">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-1 text-center text-gray-800 dark:text-gray-100">
-          Meeting Guru: <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500">AI Agents</span>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-1 text-center text-gray-800 dark:text-gray-100 flex items-center justify-center gap-2"> 
+          Meeting Guru: 
+          <span 
+            className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 bg-[length:200%_auto] animate-gradient-flow"
+          >
+            AI Agents
+          </span>
         </h1>
-        <p className="mb-4 sm:mb-6 text-center text-base text-gray-600 dark:text-gray-400">
+        <p className="mb-4 sm:mb-6 text-center text-base text-gray-600 dark:text-gray-400 animate-subtle-pulse">
           State-of-the-art meeting helper using OpenAI Agent SDK <br />
           & ElevenLabs Scribe for speaker diarization
         </p>

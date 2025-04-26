@@ -12,6 +12,20 @@ module.exports = {
         'gradient-conic':
           'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
       },
+      keyframes: {
+        'gradient-flow': {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+        'subtle-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '.85' },
+        }
+      },
+      animation: {
+        'gradient-flow': 'gradient-flow 6s ease infinite',
+        'subtle-pulse': 'subtle-pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      }
     },
   },
   plugins: [],

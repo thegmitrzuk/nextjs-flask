@@ -163,7 +163,7 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
     <> 
       {isEditingAgenda ? (
         // Frame shown only in editing mode - Add transition - Adjust margin
-        <div className="p-1 bg-gradient-to-r from-blue-500 to-green-500 rounded-lg mt-8 w-full max-w-2xl transition-all duration-300 ease-in-out">
+        <div className="p-1 bg-gradient-to-r from-blue-500 to-green-500 rounded-lg mt-8 w-full max-w-2xl transition-all duration-300 ease-in-out hover:shadow-lg">
           <div className="p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
             {/* Title shown only in editing mode */}
             <label htmlFor="agenda-input" className="block mb-2 text-lg font-medium text-gray-900 dark:text-white">
@@ -183,14 +183,14 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
               {/* Save Button - Add transitions */}
               <button
                   onClick={handleSaveAgenda}
-                  className="sm:col-span-1 px-4 py-2 text-white rounded-full bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-all duration-200 ease-in-out active:scale-95"
+                  className="sm:col-span-1 px-4 py-2 text-white rounded-full bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-all duration-200 ease-in-out active:scale-95 hover:-translate-y-0.5 hover:shadow-md"
               >
                   Save Agenda
               </button>
               {/* Upload File Button - Add transitions */}
               <label 
                 htmlFor="file-upload" 
-                className="sm:col-span-1 block w-full text-center cursor-pointer px-4 py-2 rounded-full border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-green-500 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-medium transition-all duration-200 ease-in-out active:scale-95"
+                className="sm:col-span-1 block w-full text-center cursor-pointer px-4 py-2 rounded-full border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-green-500 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-medium transition-all duration-200 ease-in-out active:scale-95 hover:-translate-y-0.5 hover:shadow-sm"
               >
                   Upload File
               </label>
@@ -221,7 +221,7 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
                 onClick={handleEditAgenda}
                 disabled={!agendaExistsOnServer} 
                 // Apply styles similar to Upload File label
-                className={`px-6 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-all duration-200 ease-in-out active:scale-95 ${!agendaExistsOnServer 
+                className={`px-6 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-all duration-200 ease-in-out active:scale-95 hover:-translate-y-0.5 hover:shadow-sm ${!agendaExistsOnServer
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
                     : 'border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-green-500 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-medium focus:ring-blue-500'}`}
                 title={!agendaExistsOnServer ? "No agenda saved yet" : "Edit the saved agenda"}

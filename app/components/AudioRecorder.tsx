@@ -37,7 +37,7 @@ interface AudioRecorderProps {
 
 // Card Styling Wrapper Component
 const Card = ({ title, children, loading }: { title: string; children: ReactNode, loading?: boolean }) => (
-  <div className="bg-white dark:bg-gray-800/50 rounded-lg shadow-md p-4 ring-1 ring-slate-900/5 dark:ring-slate-200/10 transition-all duration-300 ease-in-out">
+  <div className="bg-white dark:bg-gray-800/50 rounded-lg shadow-md p-4 ring-1 ring-slate-900/5 dark:ring-slate-200/10 transition-all duration-300 ease-in-out hover:shadow-lg hover:-translate-y-0.5">
     <h3 className="text-base font-semibold mb-2 flex items-center bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500">
       {/* Optional: Add icons here based on title */} 
       {title}
@@ -327,7 +327,7 @@ export default function AudioRecorder({
       <div className="flex flex-col items-center space-y-3">
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95 ${
+          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-105 hover:shadow-md ${
             isRecording ? 'scale-105 drop-shadow-lg' : ''
           }`}
           aria-label={isRecording ? 'Stop recording' : 'Start recording'}
@@ -453,9 +453,9 @@ export default function AudioRecorder({
         <button
           onClick={handleSummarize}
           disabled={isSummarizing}
-          className={`px-6 py-2 rounded-full text-white transition-all duration-300 ease-in-out active:scale-95 ${isSummarizing 
+          className={`px-6 py-2 rounded-full text-white transition-all duration-300 ease-in-out active:scale-95 hover:-translate-y-0.5 hover:shadow-md ${isSummarizing 
             ? 'bg-gray-400 cursor-not-allowed' 
-            : 'bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95'}`}
+            : 'bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-105'}`}
         >
           {isSummarizing ? 'Summarizing...' : 'Summarize Conversation'}
         </button>
@@ -482,12 +482,12 @@ export default function AudioRecorder({
               value={recipientEmail}
               onChange={(e) => setRecipientEmail(e.target.value)}
               placeholder="Enter recipient email address"
-              className="flex-grow p-2 border border-gray-300 rounded-md dark:bg-gray-600 dark:border-gray-500 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              className="flex-grow p-2 border border-gray-300 rounded-md dark:bg-gray-600 dark:border-gray-500 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ease-in-out"
             />
             <button
               onClick={handleSendEmail}
               disabled={!recipientEmail || emailStatus === 'Sending...'}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 ease-in-out active:scale-95"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 ease-in-out active:scale-95 hover:-translate-y-0.5 hover:shadow-md"
             >
               {emailStatus === 'Sending...' ? 'Sending...' : 'Send Email'}
             </button>
@@ -533,7 +533,6 @@ export default function AudioRecorder({
               return segments.map((seg, sIndex) => {
                 const startSec = Math.floor(seg.words[0].start);
                 const endSec = Math.ceil(seg.words[seg.words.length - 1].end);
-                const speakerLabel = seg.speaker.replace('speaker_', 'Speaker ');
                 const text = seg.words.map(w => w.text).join(' ');
                 
                 // Map speaker_ids to different colors consistently
@@ -547,10 +546,9 @@ export default function AudioRecorder({
                 const colorClass = speakerColorClasses[colorIndex];
                 
                 return (
-                  <div key={`${tIndex}-${sIndex}`} className={`p-4 rounded-lg border ${colorClass} transition-opacity duration-300 ease-in-out`}>
+                  <div key={`${tIndex}-${sIndex}`} className={`p-4 rounded-lg border ${colorClass} transition-all duration-300 ease-in-out hover:border-opacity-80 hover:shadow-sm`}>
                     <div className="flex justify-between text-sm">
                       <div className="text-gray-500">{formatTime(startSec)} - {formatTime(endSec)}</div>
-                      <div className="font-medium">{speakerLabel}</div>
                     </div>
                     <div className="mt-2 text-gray-800 dark:text-gray-100">{text}</div>
                   </div>
