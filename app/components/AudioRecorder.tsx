@@ -17,7 +17,11 @@ interface TranscriptionData {
   words: TranscriptionWord[]
 }
 
-export default function AudioRecorder() {
+interface AudioRecorderProps {
+  isDisabled: boolean;
+}
+
+export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [transcriptions, setTranscriptions] = useState<TranscriptionData[]>([])
@@ -209,12 +213,14 @@ export default function AudioRecorder() {
       <div className="flex flex-col items-center space-y-4">
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
-            isRecording 
-              ? 'bg-red-500 hover:bg-red-600 scale-105 drop-shadow-lg' 
+          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            isRecording
+              ? 'bg-red-500 hover:bg-red-600 scale-105 drop-shadow-lg'
               : 'bg-blue-500 hover:bg-blue-600'
           }`}
           aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+          disabled={isDisabled}
+          title={isDisabled ? "Please save the agenda first" : (isRecording ? "Stop recording" : "Start recording")}
         >
           {isRecording ? (
             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 448 512">
@@ -227,6 +233,12 @@ export default function AudioRecorder() {
           )}
         </button>
         
+        {isDisabled && (
+          <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
+            Please save the agenda below before starting the recording.
+          </p>
+        )}
+
         <span className={`font-mono text-sm transition-opacity duration-300 ${isRecording ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
           {formatTime(recordingTime)}
         </span>
