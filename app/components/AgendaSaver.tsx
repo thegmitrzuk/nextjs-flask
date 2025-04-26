@@ -162,8 +162,8 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
     // Conditionally render the outer frame ONLY when editing
     <> 
       {isEditingAgenda ? (
-        // Frame shown only in editing mode
-        <div className="p-1 bg-gradient-to-r from-blue-500 to-green-500 rounded-lg mt-10 w-full max-w-2xl">
+        // Frame shown only in editing mode - Add transition - Adjust margin
+        <div className="p-1 bg-gradient-to-r from-blue-500 to-green-500 rounded-lg mt-8 w-full max-w-2xl transition-all duration-300 ease-in-out">
           <div className="p-4 rounded-lg shadow-md bg-white dark:bg-gray-800">
             {/* Title shown only in editing mode */}
             <label htmlFor="agenda-input" className="block mb-2 text-lg font-medium text-gray-900 dark:text-white">
@@ -177,20 +177,20 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
               value={agendaText}
               onChange={(e) => onAgendaChange(e.target.value)}
               placeholder="Write down agenda here or upload a file (.txt, .docx, .pdf)..."
-              className="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 mb-4"
+              className="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 mb-3"
             />
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Save Button */}
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Save Button - Add transitions */}
               <button
                   onClick={handleSaveAgenda}
-                  className="sm:col-span-1 px-4 py-2 text-white rounded-full bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+                  className="sm:col-span-1 px-4 py-2 text-white rounded-full bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-all duration-200 ease-in-out active:scale-95"
               >
                   Save Agenda
               </button>
-              {/* Upload File Button */}
+              {/* Upload File Button - Add transitions */}
               <label 
                 htmlFor="file-upload" 
-                className="sm:col-span-1 block w-full text-center cursor-pointer px-4 py-2 rounded-full border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-green-500 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-medium"
+                className="sm:col-span-1 block w-full text-center cursor-pointer px-4 py-2 rounded-full border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-green-500 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-medium transition-all duration-200 ease-in-out active:scale-95"
               >
                   Upload File
               </label>
@@ -203,9 +203,9 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
               />
             </div>
 
-            {/* Status Message (inside frame when editing) */}
+            {/* Status Message (inside frame when editing) - Add transitions - Adjust margin */}
             {statusMessage && (
-              <p className={`mt-4 text-center text-sm ${statusMessage.includes('Failed') || statusMessage.includes('empty') || statusMessage.includes('Invalid') || statusMessage.includes('No saved') ? 'text-red-600 dark:text-red-400' : 
+              <p className={`mt-3 text-center text-sm transition-opacity duration-300 ease-in-out ${statusMessage.includes('Failed') || statusMessage.includes('empty') || statusMessage.includes('Invalid') || statusMessage.includes('No saved') ? 'text-red-600 dark:text-red-400' : 
                                           statusMessage.includes('successfully') || statusMessage.includes('loaded') ? 'text-green-600 dark:text-green-400' : 
                                           'text-gray-600 dark:text-gray-400'}`}>
                   {statusMessage}
@@ -214,14 +214,14 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
           </div>
         </div>
       ) : (
-        // Submitted/View Mode UI (no frame, no title)
-        <div className="mt-10 w-full max-w-2xl flex flex-col items-center">
-           {/* Edit Button (styled like Upload button) */}
+        // Submitted/View Mode UI (no frame, no title) - Adjust margin
+        <div className="mt-8 w-full max-w-2xl flex flex-col items-center transition-all duration-300 ease-in-out">
+           {/* Edit Button (styled like Upload button) - Add transitions */}
             <button
                 onClick={handleEditAgenda}
                 disabled={!agendaExistsOnServer} 
                 // Apply styles similar to Upload File label
-                className={`px-6 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${!agendaExistsOnServer 
+                className={`px-6 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-all duration-200 ease-in-out active:scale-95 ${!agendaExistsOnServer 
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
                     : 'border border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-green-500 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500 font-medium focus:ring-blue-500'}`}
                 title={!agendaExistsOnServer ? "No agenda saved yet" : "Edit the saved agenda"}
@@ -229,9 +229,9 @@ export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverP
                 Edit Agenda
             </button>
 
-            {/* Status Message (outside frame when not editing) */}
+            {/* Status Message (outside frame when not editing) - Add transitions - Adjust margin */}
             {statusMessage && (
-              <p className={`mt-4 text-center text-sm ${statusMessage.includes('Failed') || statusMessage.includes('empty') || statusMessage.includes('Invalid') || statusMessage.includes('No saved') ? 'text-red-600 dark:text-red-400' : 
+              <p className={`mt-3 text-center text-sm transition-opacity duration-300 ease-in-out ${statusMessage.includes('Failed') || statusMessage.includes('empty') || statusMessage.includes('Invalid') || statusMessage.includes('No saved') ? 'text-red-600 dark:text-red-400' : 
                                           statusMessage.includes('successfully') || statusMessage.includes('loaded') ? 'text-green-600 dark:text-green-400' : 
                                           'text-gray-600 dark:text-gray-400'}`}>
                   {statusMessage}

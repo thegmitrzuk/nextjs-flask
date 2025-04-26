@@ -323,10 +323,11 @@ def summarize_conversation():
     # Create summarization agent
     agent = Agent(
         name="Summarizer",
+        model="gpt-4.1", # Specify the model
         instructions=("You are an assistant that summarizes conversation transcripts. "
-                      "Provide a concise summary in 2-3 sentences. "
-                      "Focus on the key topics and decisions made. " # Added more specific instruction
-                      "Return only a JSON object with a single key 'summary'."),
+                      "Pay close attention to the provided transcript. "
+                      "Provide a concise summary focusing on key topics and decisions made. "
+                      "Return ONLY a JSON object with a single key 'summary'. Example: {\"summary\": \"Discussion focused on project timelines...\"}"),
     )
     try:
         raw_output = run_agent_sync(agent, combined_text)
@@ -367,12 +368,11 @@ def get_prompts():
 
     agent = Agent(
         name="ConversationPrompter",
-        instructions=("You are an AI assistant analyzing a conversation transcript. "
-                      "Based on the *latest* part of the conversation, suggest 1-2 open-ended questions or prompts "
-                      "to keep the discussion flowing or explore related topics. "
-                      "Focus on relevance to the most recent exchanges. "
-                      "Return ONLY a JSON object with a single key 'prompts' containing a list of strings (the prompts). "
-                      "Example: {\"prompts\": [\"What are the potential risks of that approach?\", \"Could you elaborate on the previous point?\"]}"),
+        model="gpt-4.1", # Specify the model
+        instructions=("Analyze the *latest* part of the conversation transcript. Pay close attention to the provided transcript. "
+                      "Suggest 1-2 open-ended questions/prompts to keep the discussion flowing or explore related topics. "
+                      "Focus on relevance to recent exchanges. "
+                      "Return ONLY a JSON object: {\"prompts\": [\"prompt1\", \"prompt2\"]}. If no prompts are suitable, return {\"prompts\": []}."),
     )
     try:
         raw_output = run_agent_sync(agent, f"Current Transcript:\n{transcript_text}")
@@ -409,12 +409,12 @@ def get_current_agenda():
 
     agent = Agent(
         name="AgendaTracker",
-        instructions=("You are an AI assistant comparing a meeting agenda with the ongoing conversation transcript. "
-                      "Identify which specific item from the agenda is *most likely* being discussed *right now*, based on the latest part of the transcript. "
-                      "Consider keywords and topics mentioned recently. "
-                      "If the discussion seems to be between items or off-topic, state that. "
-                      "Return ONLY a JSON object with a single key 'current_item' containing a string describing the current focus (e.g., the agenda item text, 'Discussion seems off-topic', 'Transitioning between items')."),
-        # Potentially provide the agenda format if known (e.g., uses numbering, bullet points)
+        model="gpt-4.1", # Specify the model
+        instructions=("Compare the meeting agenda with the *latest* part of the transcript. Pay close attention to the provided transcript and agenda. "
+                      "Identify which specific agenda item is most likely being discussed *right now*. "
+                      "If the discussion is between items or off-topic, state that clearly. "
+                      "Return ONLY a JSON object: {\"current_item\": \"description of current focus\"}. "
+                      "The description should be the agenda item text, or a status like 'Off-topic discussion', 'Transitioning between items', etc."),
     )
     try:
         prompt = f"AGENDA:\n{agenda_text}\n\nTRANSCRIPT (latest part is most important):\n{transcript_text}"
@@ -462,14 +462,14 @@ def explain_concepts():
 
     agent = Agent(
         name="ConceptExplainer",
-        instructions=("You are an AI assistant reading a conversation transcript. "
-                      "Identify 1-2 potentially complex technical terms, jargon, or concepts mentioned *recently* that might require explanation. "
-                      "For each concept identified, provide a very brief (1-sentence) definition or explanation suitable for someone unfamiliar with the term. "
-                      # "Use the provided web search tool if necessary to find definitions." # Add this when tool is integrated
-                      "Return ONLY a JSON object with a single key 'explanations' containing a list of objects, "
-                      "where each object has 'term' and 'explanation' keys. "
-                      "Example: {\"explanations\": [{\"term\": \"API\", \"explanation\": \"An Application Programming Interface allows different software systems to communicate.\"}, {\"term\": \"RPC\", \"explanation\": \"Remote Procedure Call enables a program to execute code on another computer.\"}]}"),
-        # tools=[web_search_tool] # Add the actual tool function here when implemented
+        model="gpt-4.1", # Specify the model
+        instructions=("Read the *latest* part of the conversation transcript. Pay close attention to the provided transcript. "
+                      "Identify 1-2 potentially complex technical terms, jargon, or concepts mentioned *recently*. "
+                      "Provide a brief (1-sentence) definition/explanation for each. "
+                      # "Use the web_search_tool if needed." # Uncomment when tool is added
+                      "Return ONLY a JSON object: {\"explanations\": [{\"term\": \"Term1\", \"explanation\": \"Explanation1\"}, ...]}. "
+                      "If no complex concepts are found, return {\"explanations\": []}."),
+        # tools=[] # Add actual tool function here when implemented
     )
     try:
         prompt = f"Analyze the following transcript for complex concepts:\n{transcript_text}"

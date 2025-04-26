@@ -17,13 +17,48 @@ interface TranscriptionData {
   words: TranscriptionWord[]
 }
 
+// Type for Concept Explanations
+interface Explanation {
+  term: string;
+  explanation: string;
+}
+
 // Define props to accept children and callback
 interface AudioRecorderProps {
   children?: ReactNode; // Make children optional
   onTranscriptUpdate?: (transcript: string) => void; // Callback for transcript changes
+  // Add props for agent data
+  prompts: string[];
+  currentItem: string | null;
+  explanations: Explanation[];
+  isLoadingAgents: boolean;
+  agentError: string | null;
 }
 
-export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRecorderProps) {
+// Card Styling Wrapper Component
+const Card = ({ title, children, loading }: { title: string; children: ReactNode, loading?: boolean }) => (
+  <div className="bg-white dark:bg-gray-800/50 rounded-lg shadow-md p-4 ring-1 ring-slate-900/5 dark:ring-slate-200/10 transition-all duration-300 ease-in-out">
+    <h3 className="text-base font-semibold mb-2 flex items-center bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-green-500">
+      {/* Optional: Add icons here based on title */} 
+      {title}
+      {loading && <span className="ml-2 h-3 w-3 animate-spin rounded-full border-2 border-sky-400 border-r-transparent" />} 
+    </h3>
+    <div className="text-sm text-gray-800 dark:text-gray-100 space-y-1">
+      {children}
+    </div>
+  </div>
+);
+
+export default function AudioRecorder({
+   children,
+   onTranscriptUpdate,
+   // Destructure new props
+   prompts,
+   currentItem,
+   explanations,
+   isLoadingAgents,
+   agentError 
+  }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [transcriptions, setTranscriptions] = useState<TranscriptionData[]>([])
@@ -44,7 +79,7 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
   const [audioLevels, setAudioLevels] = useState<number[]>([])
   const visualizerBars = 48 // Number of bars in the visualizer
 
-  const INTERVAL_TIME = 30000 // 30 seconds in milliseconds
+  const INTERVAL_TIME = 20000 // 20 seconds in milliseconds
 
   const startRecording = async () => {
     try {
@@ -287,21 +322,19 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
   }
 
   return (
-    <div className="flex flex-col items-center space-y-8 w-full max-w-3xl">
+    <div className="flex flex-col items-center space-y-6 w-full max-w-3xl">
       {/* Modern Recording UI */}
-      <div className="flex flex-col items-center space-y-4">
+      <div className="flex flex-col items-center space-y-3">
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            isRecording
-              ? 'bg-red-500 hover:bg-red-600 scale-105 drop-shadow-lg'
-              : 'bg-blue-500 hover:bg-blue-600'
+          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95 ${
+            isRecording ? 'scale-105 drop-shadow-lg' : ''
           }`}
           aria-label={isRecording ? 'Stop recording' : 'Start recording'}
           title={isRecording ? "Stop recording" : "Start recording"}
         >
           {isRecording ? (
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 448 512">
+            <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 448 512">
               <path d="M400 32H48C21.5 32 0 53.5 0 80v352c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V80c0-26.5-21.5-48-48-48z"/>
             </svg>
           ) : (
@@ -311,12 +344,12 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
           )}
         </button>
 
-        <span className={`font-mono text-sm transition-opacity duration-300 ${isRecording ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
+        <span className={`font-mono text-sm mt-1 transition-opacity duration-300 ${isRecording ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
           {formatTime(recordingTime)}
         </span>
 
         {/* Audio Visualizer */}
-        <div className="h-8 w-64 flex items-center justify-center gap-0.5 mt-2">
+        <div className="h-8 w-64 flex items-center justify-center gap-0.5 mt-1">
           {[...Array(visualizerBars)].map((_, i) => (
             <div
               key={i}
@@ -338,11 +371,11 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
           ))}
         </div>
 
-        <p className="text-xs text-gray-600 dark:text-gray-300 h-4">
+        <p className="text-xs text-gray-600 dark:text-gray-300 h-4 mt-1">
           {isRecording ? 'Listening...' : 'Click to speak'}
           {isRecording && (
             <span className="ml-2 text-xs text-gray-500">
-              Next send in {30 - (recordingTime % 30)}s
+              Next send in {20 - (recordingTime % 20)}s
             </span>
           )}
         </p>
@@ -351,37 +384,94 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
       {/* == Render children (AgendaSaver) here == */}
       {children} 
       
-      {/* Error Display */}
+      {/* Agent Outputs Section - Moved here - Add transitions */}
+      {(prompts.length > 0 || currentItem || explanations.length > 0 || isLoadingAgents || agentError) && (
+         <div className="mt-6 w-full max-w-3xl grid grid-cols-1 md:grid-cols-3 gap-4 transition-opacity duration-300 ease-in-out">
+           
+           {/* Current Agenda Item Card */}
+            <Card title="Current Focus" loading={isLoadingAgents && !currentItem}>
+               {currentItem ? (
+                   <p>{currentItem}</p>
+               ) : isLoadingAgents ? (
+                    <p className="text-gray-500 dark:text-gray-400 italic">Loading...</p>
+               ) : (
+                    <p className="text-gray-500 dark:text-gray-400 italic">Waiting for discussion...</p>
+               )}
+            </Card>
+
+           {/* Conversation Prompts Card */}
+           <Card title="Prompts" loading={isLoadingAgents && prompts.length === 0}>
+              {prompts.length > 0 ? (
+               <ul className="list-disc list-inside space-y-1">
+                 {prompts.map((prompt, index) => (
+                   <li key={index}>{prompt}</li>
+                 ))}
+               </ul>
+             ) : isLoadingAgents ? (
+                   <p className="text-gray-500 dark:text-gray-400 italic">Loading...</p>
+             ) : (
+                 <p className="text-gray-500 dark:text-gray-400 italic">No prompts suggested.</p>
+             )}
+           </Card>
+
+           {/* Concept Explanations Card */}
+            <Card title="Key Concepts" loading={isLoadingAgents && explanations.length === 0}>
+             {explanations.length > 0 ? (
+               <ul className="space-y-2">
+                 {explanations.map((exp, index) => (
+                   <li key={index}>
+                     <strong className="font-medium">{exp.term}:</strong>
+                     <span className="ml-1 text-gray-600 dark:text-gray-300">{exp.explanation}</span>
+                   </li>
+                 ))}
+               </ul>
+             ) : isLoadingAgents ? (
+                   <p className="text-gray-500 dark:text-gray-400 italic">Loading...</p>
+             ) : (
+                 <p className="text-gray-500 dark:text-gray-400 italic">No complex concepts detected.</p>
+             )}
+           </Card>
+
+           {/* Agent Error Display - Add transitions */}
+           {agentError && (
+             <div className="md:col-span-3 mt-2 p-3 bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700/50 rounded-md transition-opacity duration-300 ease-in-out">
+               <p className="text-sm text-red-700 dark:text-red-200"><strong className='font-medium'>Agent Error:</strong> {agentError}</p>
+             </div>
+           )}
+         </div>
+       )}
+
+      {/* Error Display (for recorder/summary/email errors) - Add transitions */}
       {error && (
-        <div className="w-full text-center text-red-500 bg-red-100 dark:bg-red-900/30 dark:text-red-300 p-3 rounded-lg">
+        <div className="w-full text-center text-red-500 bg-red-100 dark:bg-red-900/30 dark:text-red-300 p-3 rounded-lg transition-opacity duration-300 ease-in-out">
           {error}
         </div>
       )}
 
-      {/* Summarize Button */}
+      {/* Summarize Button - Add ease-in-out and active:scale */}
       {transcriptions.length > 0 && (
         <button
           onClick={handleSummarize}
           disabled={isSummarizing}
-          className={`px-6 py-2 rounded-full text-white transition-colors ${isSummarizing 
+          className={`px-6 py-2 rounded-full text-white transition-all duration-300 ease-in-out active:scale-95 ${isSummarizing 
             ? 'bg-gray-400 cursor-not-allowed' 
-            : 'bg-green-500 hover:bg-green-600'}`}
+            : 'bg-gradient-to-r from-blue-500 to-green-500 hover:brightness-95'}`}
         >
           {isSummarizing ? 'Summarizing...' : 'Summarize Conversation'}
         </button>
       )}
 
-      {/* Display summary */}
+      {/* Display summary - Add transitions */}
       {summary && (
-        <div className="w-full bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg border border-blue-100 dark:border-blue-800">
-          <h3 className="text-xl font-semibold mb-3 text-blue-900 dark:text-blue-100">Summary</h3>
+        <div className="w-full bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg border border-blue-100 dark:border-blue-800 transition-opacity duration-300 ease-in-out">
+          <h3 className="text-xl font-semibold mb-2 text-blue-900 dark:text-blue-100">Summary</h3>
           <p className="text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{summary}</p>
         </div>
       )}
 
-      {/* Email Input Section - Shown after summary */}
+      {/* Email Input Section - Shown after summary - Add transitions */}
       {showEmailInput && (
-        <div className="w-full mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg shadow-inner">
+        <div className="w-full mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg shadow-inner transition-opacity duration-300 ease-in-out">
           <label htmlFor="recipient-email" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">
             Send Summary To:
           </label>
@@ -397,14 +487,14 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
             <button
               onClick={handleSendEmail}
               disabled={!recipientEmail || emailStatus === 'Sending...'}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 ease-in-out active:scale-95"
             >
               {emailStatus === 'Sending...' ? 'Sending...' : 'Send Email'}
             </button>
           </div>
-          {/* Email Status Message */}
+          {/* Email Status Message - Add transitions */}
           {emailStatus && (
-            <p className={`mt-3 text-center text-sm ${
+            <p className={`mt-2 text-center text-sm transition-opacity duration-300 ease-in-out ${
               emailStatus.includes('Failed') || emailStatus.includes('required') || emailStatus.includes('valid')
                 ? 'text-red-600 dark:text-red-400' 
                 : emailStatus.includes('successfully') 
@@ -420,8 +510,8 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
       {/* Transcriptions Display */}
       {transcriptions.length > 0 && (
         <div className="w-full">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Transcript</h3>
-          <div className="space-y-4">
+          <h3 className="text-xl font-semibold mb-3 text-gray-800 dark:text-gray-200">Transcript</h3>
+          <div className="space-y-3">
             {transcriptions.map((transcription, tIndex) => {
               const wordSegments = transcription.words.filter(w => w.type === 'word');
               if (wordSegments.length === 0) return null;
@@ -457,7 +547,7 @@ export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRec
                 const colorClass = speakerColorClasses[colorIndex];
                 
                 return (
-                  <div key={`${tIndex}-${sIndex}`} className={`p-4 rounded-lg border ${colorClass}`}>
+                  <div key={`${tIndex}-${sIndex}`} className={`p-4 rounded-lg border ${colorClass} transition-opacity duration-300 ease-in-out`}>
                     <div className="flex justify-between text-sm">
                       <div className="text-gray-500">{formatTime(startSec)} - {formatTime(endSec)}</div>
                       <div className="font-medium">{speakerLabel}</div>

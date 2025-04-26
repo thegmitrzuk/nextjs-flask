@@ -11,6 +11,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@types/node": "20.1.4",
     "@types/pdfjs-dist": "^2.10.377",
     "@types/react": "18.2.6",
