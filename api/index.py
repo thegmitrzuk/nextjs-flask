@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from agents import Agent, Runner  # add at top with other imports
 import asyncio  # added for event loop management
 import re  # add with other imports
+from pypdf import PdfReader # Import PdfReader from pypdf
+import io # To handle file stream
 
 load_dotenv()
 
@@ -49,6 +51,37 @@ def save_agenda():
     except Exception as e:
         app.logger.error(f"Error writing to file {file_path}: {e}")
         return jsonify({'error': f'Failed to save agenda: {e}'}), 500
+
+@app.route("/api/extract-pdf-text", methods=['POST'])
+def extract_pdf_text():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({"error": "Invalid file type, only PDF allowed"}), 400
+
+    try:
+        # Read the file into memory
+        pdf_file_stream = io.BytesIO(file.read())
+        reader = PdfReader(pdf_file_stream)
+        text = ""
+        for page in reader.pages:
+            extracted = page.extract_text()
+            if extracted: # Check if text was extracted
+                text += extracted + "\n" # Add newline between pages
+
+        if not text.strip(): # Check if extracted text is empty after stripping whitespace
+             return jsonify({"text": "", "message": "PDF contained no extractable text."}), 200
+
+        return jsonify({"text": text}), 200
+    except Exception as e:
+        app.logger.error(f"Error extracting text from PDF: {e}")
+        return jsonify({"error": f"Failed to process PDF: {e}"}), 500
 
 @app.route("/api/save-audio", methods=['POST'])
 def save_audio():
