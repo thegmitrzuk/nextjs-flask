@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import AudioRecorder from './components/AudioRecorder'
 
 export default function Home() {
   const [num1, setNum1] = useState('')
@@ -100,6 +101,9 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Audio Recorder */}
+      <AudioRecorder />
 
       <div className="mb-32 grid text-center lg:mb-0 lg:grid-cols-4 lg:text-left">
         <a
