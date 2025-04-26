@@ -42,6 +42,13 @@ export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
 
   const startRecording = async () => {
     try {
+      // Clear previous transcript file
+      try {
+        await fetch('/api/clear-transcript', { method: 'POST' });
+      } catch (e) {
+        console.error('Failed to clear transcript file:', e);
+      }
+
       // Clear any existing streams or intervals
       if (chunkIntervalRef.current) clearInterval(chunkIntervalRef.current)
       if (scriptNodeRef.current) scriptNodeRef.current.disconnect()
@@ -85,6 +92,15 @@ export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
   }
 
   const stopRecording = async () => {
+    // Send any remaining audio data before cleanup
+    if (pcmDataRef.current.length > 0) {
+      try {
+        await sendWavChunk();
+      } catch (e) {
+        console.error('Error sending final chunk:', e);
+      }
+    }
+
     // Clear UI timer and chunk timer
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     if (chunkIntervalRef.current) { clearInterval(chunkIntervalRef.current); chunkIntervalRef.current = null }

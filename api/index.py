@@ -106,6 +106,13 @@ def save_audio():
             
         transcription_data = response.json()
         app.logger.info("Transcription successful.")
+        # Save transcript text to file
+        transcripts_file = os.path.join(recordings_dir, "transcript.txt")
+        try:
+            with open(transcripts_file, "a", encoding="utf-8") as tf:
+                tf.write(transcription_data.get("text", "") + "\n\n")
+        except Exception as e:
+            app.logger.error(f"Error writing transcript file: {e}")
         return jsonify({
             "message": "Audio saved and transcribed successfully",
             "filename": filename,
@@ -156,13 +163,18 @@ def save_audio():
 
 @app.route("/api/summarize", methods=["POST"])
 def summarize_conversation():
-    data = request.get_json(silent=True) or {}
-    transcripts = data.get('transcripts')
-    if not transcripts or not isinstance(transcripts, list):
-        return jsonify({"error": "No transcripts provided or invalid format"}), 400
+    # Attempt to read transcript from file first, fallback to request body
+    transcripts_file = os.path.join(os.path.dirname(__file__), 'recordings', 'transcript.txt')
+    if os.path.exists(transcripts_file):
+        with open(transcripts_file, "r", encoding="utf-8") as tf:
+            combined_text = tf.read()
+    else:
+        data = request.get_json(silent=True) or {}
+        transcripts = data.get('transcripts')
+        if not transcripts or not isinstance(transcripts, list):
+            return jsonify({"error": "No transcripts provided or invalid format"}), 400
+        combined_text = "\n\n".join([t.get('text', '') for t in transcripts])
 
-    # Concatenate all transcript texts
-    combined_text = "\n\n".join([t.get('text', '') for t in transcripts])
     # Create summarization agent
     agent = Agent(
         name="Summarizer",
@@ -193,3 +205,16 @@ def summarize_conversation():
     except Exception as e:
         app.logger.error(f"Summarization failed: {e}")
         return jsonify({"error": f"Summarization error: {e}"}), 500
+
+@app.route("/api/clear-transcript", methods=["POST"])
+def clear_transcript():
+    """Clear the existing transcript file to start fresh"""
+    try:
+        transcripts_file = os.path.join(os.path.dirname(__file__), 'recordings', 'transcript.txt')
+        if os.path.exists(transcripts_file):
+            open(transcripts_file, 'w').close()  # Truncate file
+            return jsonify({"message": "Transcript file cleared"}), 200
+        return jsonify({"message": "No transcript file found"}), 200
+    except Exception as e:
+        app.logger.error(f"Error clearing transcript file: {e}")
+        return jsonify({"error": f"Error clearing transcript: {e}"}), 500
