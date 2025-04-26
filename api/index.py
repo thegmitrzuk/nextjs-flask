@@ -4,6 +4,9 @@ from datetime import datetime
 import requests
 import json
 from dotenv import load_dotenv
+from agents import Agent, Runner  # add at top with other imports
+import asyncio  # added for event loop management
+import re  # add with other imports
 
 load_dotenv()
 
@@ -127,3 +130,43 @@ def save_audio():
             "filename": filename,
             "error": f"Unexpected server error during transcription: {e}"
         }), 500
+
+@app.route("/api/summarize", methods=["POST"])
+def summarize_conversation():
+    data = request.get_json(silent=True) or {}
+    transcripts = data.get('transcripts')
+    if not transcripts or not isinstance(transcripts, list):
+        return jsonify({"error": "No transcripts provided or invalid format"}), 400
+
+    # Concatenate all transcript texts
+    combined_text = "\n\n".join([t.get('text', '') for t in transcripts])
+    # Create summarization agent
+    agent = Agent(
+        name="Summarizer",
+        instructions=("You are an assistant that summarizes conversation transcripts. "
+                      "Provide a concise summary in 2-3 sentences. "
+                      "Return only a JSON object with a single key 'summary'."),
+    )
+    try:
+        # Ensure a new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = Runner.run_sync(agent, combined_text)
+        # Close the loop after execution
+        loop.close()
+        # result from agent
+        raw_output = result.final_output.strip()
+        # Remove markdown code fences (```json ... ```)
+        summary_output = re.sub(r'^```(?:json)?\s*', '', raw_output)
+        summary_output = re.sub(r'\s*```$', '', summary_output)
+        # Attempt to parse JSON
+        try:
+            summary_json = json.loads(summary_output)
+            summary_text = summary_json.get('summary', summary_output)
+        except Exception:
+            # Fallback: use cleaned output
+            summary_text = summary_output
+        return jsonify({"summary": summary_text})
+    except Exception as e:
+        app.logger.error(f"Summarization failed: {e}")
+        return jsonify({"error": f"Summarization error: {e}"}), 500

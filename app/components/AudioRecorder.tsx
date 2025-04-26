@@ -26,6 +26,8 @@ export default function AudioRecorder() {
   const audioChunksRef = useRef<Blob[]>([])
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number>(0)
+  const [summary, setSummary] = useState<string | null>(null)
+  const [isSummarizing, setIsSummarizing] = useState(false)
 
   const INTERVAL_TIME = 30000 // 30 seconds in milliseconds
 
@@ -151,6 +153,31 @@ export default function AudioRecorder() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  const handleSummarize = async () => {
+    if (transcriptions.length === 0) return
+    setIsSummarizing(true)
+    setError(null)
+    setSummary(null)
+    try {
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcripts: transcriptions.map(t => ({ text: t.text })) }),
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setSummary(data.summary)
+      } else {
+        setError(data.error || 'Summarization failed')
+      }
+    } catch (e: any) {
+      console.error('Summarization error:', e)
+      setError(`Summarization error: ${e.message}`)
+    } finally {
+      setIsSummarizing(false)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center space-y-4 p-8 bg-white dark:bg-zinc-800 rounded-xl shadow-lg w-full max-w-4xl">
       <h2 className="text-2xl font-bold mb-4">Audio Recorder</h2>
@@ -177,6 +204,23 @@ export default function AudioRecorder() {
           <div className="text-sm text-gray-500 mt-1">
             Next automatic send in: {30 - (recordingTime % 30)} seconds
           </div>
+        </div>
+      )}
+
+      {/* Summary button */}
+      <button
+        onClick={handleSummarize}
+        disabled={transcriptions.length === 0 || isSummarizing}
+        className={`px-6 py-2 mt-4 rounded text-white ${isSummarizing ? 'bg-gray-500' : 'bg-green-500 hover:bg-green-600'}`}
+      >
+        {isSummarizing ? 'Summarizing...' : 'Summarize Conversation'}
+      </button>
+
+      {/* Display summary */}
+      {summary && (
+        <div className="w-full mt-6 bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+          <h3 className="text-xl font-semibold mb-2">Summary</h3>
+          <p className="text-base whitespace-pre-wrap">{summary}</p>
         </div>
       )}
 
