@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, ReactNode } from 'react'
 
 interface TranscriptionWord {
   text: string
@@ -17,11 +17,12 @@ interface TranscriptionData {
   words: TranscriptionWord[]
 }
 
+// Define props to accept children
 interface AudioRecorderProps {
-  isDisabled: boolean;
+  children?: ReactNode; // Make children optional
 }
 
-export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
+export default function AudioRecorder({ children }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [transcriptions, setTranscriptions] = useState<TranscriptionData[]>([])
@@ -235,8 +236,7 @@ export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
               : 'bg-blue-500 hover:bg-blue-600'
           }`}
           aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-          disabled={isDisabled}
-          title={isDisabled ? "Please save the agenda first" : (isRecording ? "Stop recording" : "Start recording")}
+          title={isRecording ? "Stop recording" : "Start recording"}
         >
           {isRecording ? (
             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 448 512">
@@ -248,12 +248,6 @@ export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
             </svg>
           )}
         </button>
-        
-        {isDisabled && (
-          <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
-            Please save the agenda below before starting the recording.
-          </p>
-        )}
 
         <span className={`font-mono text-sm transition-opacity duration-300 ${isRecording ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>
           {formatTime(recordingTime)}
@@ -291,14 +285,18 @@ export default function AudioRecorder({ isDisabled }: AudioRecorderProps) {
           )}
         </p>
       </div>
+
+      {/* == Render children (AgendaSaver) here == */}
+      {children} 
       
+      {/* Error Display */}
       {error && (
         <div className="w-full text-center text-red-500 bg-red-100 dark:bg-red-900/30 dark:text-red-300 p-3 rounded-lg">
           {error}
         </div>
       )}
 
-      {/* Summarize Button - Only show if there are transcriptions */}
+      {/* Summarize Button */}
       {transcriptions.length > 0 && (
         <button
           onClick={handleSummarize}

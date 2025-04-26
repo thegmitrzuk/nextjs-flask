@@ -43,14 +43,31 @@ def save_agenda():
     file_path = os.path.join(os.path.dirname(__file__), 'agenda.txt')
 
     try:
-        # Use 'w' to overwrite the file each time
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(text_content + '\n') # Write content (removed extra newline)
+            f.write(text_content) # Save without extra newline unless desired
         app.logger.info(f"Agenda saved to {file_path} (overwritten)")
-        return jsonify({'message': f'Agenda saved successfully'}), 200 # Simplified message
+        return jsonify({'message': 'Agenda saved successfully'}), 200
     except Exception as e:
         app.logger.error(f"Error writing to file {file_path}: {e}")
         return jsonify({'error': f'Failed to save agenda: {e}'}), 500
+
+@app.route("/api/load-agenda", methods=['GET'])
+def load_agenda():
+    file_path = os.path.join(os.path.dirname(__file__), 'agenda.txt')
+    
+    try:
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            app.logger.info(f"Agenda file not found at {file_path}")
+            return jsonify({'error': 'No saved agenda found'}), 404
+            
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        app.logger.info(f"Agenda loaded from {file_path}")
+        return jsonify({'text': content}), 200
+    except Exception as e:
+        app.logger.error(f"Error reading file {file_path}: {e}")
+        return jsonify({'error': f'Failed to load agenda: {e}'}), 500
 
 @app.route("/api/extract-pdf-text", methods=['POST'])
 def extract_pdf_text():
@@ -251,3 +268,7 @@ def clear_transcript():
     except Exception as e:
         app.logger.error(f"Error clearing transcript file: {e}")
         return jsonify({"error": f"Error clearing transcript: {e}"}), 500
+
+if __name__ == "__main__":
+    # Ensure this runs only locally, Vercel uses its own server mechanism
+    app.run(debug=True) # Or configure host/port as needed
