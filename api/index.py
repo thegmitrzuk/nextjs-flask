@@ -26,15 +26,32 @@ def save_agenda():
         return jsonify({'error': 'No text content provided'}), 400
 
     # Ensure agenda.txt is saved relative to the api directory or a designated data directory
-    # Saving directly in the root of a serverless function's temp filesystem might be unreliable.
-    # Consider using a more persistent storage or a dedicated data directory if needed.
     file_path = os.path.join(os.path.dirname(__file__), 'agenda.txt')
 
     try:
+        # First, ensure the directory has appropriate permissions
+        api_dir = os.path.dirname(__file__)
+        try:
+            # Attempt to make directory writable by all
+            os.chmod(api_dir, 0o777)  # Full permissions for directory
+        except Exception as e:
+            app.logger.warning(f"Unable to set directory permissions: {e}")
+        
+        # Write the file
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(text_content) # Save without extra newline unless desired
-        app.logger.info(f"Agenda saved to {file_path} (overwritten)")
+            f.write(text_content)
+        
+        # Ensure the file is accessible by setting permissive permissions
+        try:
+            os.chmod(file_path, 0o666)  # Read/write for everyone
+        except Exception as e:
+            app.logger.warning(f"Unable to set file permissions: {e}")
+            
+        app.logger.info(f"Agenda saved to {file_path}")
         return jsonify({'message': 'Agenda saved successfully'}), 200
+    except PermissionError as e:
+        app.logger.error(f"Permission error writing to file {file_path}: {e}")
+        return jsonify({'error': f'Permission denied when saving agenda. Please check file permissions.'}), 500
     except Exception as e:
         app.logger.error(f"Error writing to file {file_path}: {e}")
         return jsonify({'error': f'Failed to save agenda: {e}'}), 500
@@ -49,10 +66,19 @@ def load_agenda():
             app.logger.info(f"Agenda file not found at {file_path}")
             return jsonify({'error': 'No saved agenda found'}), 404
             
+        # Try to ensure the file is readable
+        try:
+            os.chmod(file_path, 0o666)  # Read/write for everyone
+        except Exception as e:
+            app.logger.warning(f"Unable to set file permissions: {e}")
+            
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         app.logger.info(f"Agenda loaded from {file_path}")
         return jsonify({'text': content}), 200
+    except PermissionError as e:
+        app.logger.error(f"Permission error reading file {file_path}: {e}")
+        return jsonify({'error': 'Permission denied when loading agenda. Please check file permissions.'}), 500
     except Exception as e:
         app.logger.error(f"Error reading file {file_path}: {e}")
         return jsonify({'error': f'Failed to load agenda: {e}'}), 500
@@ -147,8 +173,21 @@ def save_audio():
         # Save transcript text to file
         transcripts_file = os.path.join(recordings_dir, "transcript.txt")
         try:
+            # Create new file with permissive permissions if it doesn't exist
+            if not os.path.exists(transcripts_file):
+                with open(transcripts_file, "w", encoding="utf-8") as tf:
+                    pass  # Just create the file
+                try:
+                    os.chmod(transcripts_file, 0o666)  # Read/write for everyone
+                except Exception as e:
+                    app.logger.warning(f"Unable to set transcript file permissions: {e}")
+            
+            # Append to the transcript file
             with open(transcripts_file, "a", encoding="utf-8") as tf:
                 tf.write(transcription_data.get("text", "") + "\n\n")
+                
+        except PermissionError as e:
+            app.logger.error(f"Permission error writing transcript file: {e}")
         except Exception as e:
             app.logger.error(f"Error writing transcript file: {e}")
         return jsonify({
@@ -249,10 +288,31 @@ def clear_transcript():
     """Clear the existing transcript file to start fresh"""
     try:
         transcripts_file = os.path.join(os.path.dirname(__file__), 'recordings', 'transcript.txt')
+        
+        # Ensure the recordings directory exists and has appropriate permissions
+        recordings_dir = os.path.join(os.path.dirname(__file__), 'recordings')
+        os.makedirs(recordings_dir, exist_ok=True)
+        
+        try:
+            # Try to make the directory accessible
+            os.chmod(recordings_dir, 0o777)
+        except Exception as e:
+            app.logger.warning(f"Unable to set directory permissions: {e}")
+        
         if os.path.exists(transcripts_file):
             open(transcripts_file, 'w').close()  # Truncate file
+            
+            # Set permissive permissions on the file
+            try:
+                os.chmod(transcripts_file, 0o666)  # Read/write for everyone
+            except Exception as e:
+                app.logger.warning(f"Unable to set transcript file permissions: {e}")
+                
             return jsonify({"message": "Transcript file cleared"}), 200
         return jsonify({"message": "No transcript file found"}), 200
+    except PermissionError as e:
+        app.logger.error(f"Permission error clearing transcript file: {e}")
+        return jsonify({"error": f"Permission denied when clearing transcript: {e}"}), 500
     except Exception as e:
         app.logger.error(f"Error clearing transcript file: {e}")
         return jsonify({"error": f"Error clearing transcript: {e}"}), 500
