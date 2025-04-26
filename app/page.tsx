@@ -1,7 +1,33 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { useState } from 'react'
 
 export default function Home() {
+  const [num1, setNum1] = useState('')
+  const [num2, setNum2] = useState('')
+  const [result, setResult] = useState<number | null>(null)
+
+  const handleAddition = async () => {
+    try {
+      const response = await fetch('/api/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          num1: parseFloat(num1),
+          num2: parseFloat(num2),
+        }),
+      })
+      const data = await response.json()
+      setResult(data.result)
+    } catch (error) {
+      console.error('Error:', error)
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
       <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
@@ -40,6 +66,39 @@ export default function Home() {
           height={37}
           priority
         />
+      </div>
+
+      {/* Addition Calculator */}
+      <div className="relative flex flex-col items-center space-y-4 p-8 bg-white dark:bg-zinc-800 rounded-xl shadow-lg">
+        <h2 className="text-2xl font-bold mb-4">Addition Calculator</h2>
+        <div className="flex space-x-4">
+          <input
+            type="number"
+            value={num1}
+            onChange={(e) => setNum1(e.target.value)}
+            placeholder="First number"
+            className="px-4 py-2 border rounded dark:bg-zinc-700 dark:text-white"
+          />
+          <span className="text-2xl">+</span>
+          <input
+            type="number"
+            value={num2}
+            onChange={(e) => setNum2(e.target.value)}
+            placeholder="Second number"
+            className="px-4 py-2 border rounded dark:bg-zinc-700 dark:text-white"
+          />
+        </div>
+        <button
+          onClick={handleAddition}
+          className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        >
+          Calculate
+        </button>
+        {result !== null && (
+          <div className="mt-4 text-xl">
+            Result: <span className="font-bold">{result}</span>
+          </div>
+        )}
       </div>
 
       <div className="mb-32 grid text-center lg:mb-0 lg:grid-cols-4 lg:text-left">
