@@ -2,27 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 
-interface TranscriptionWord {
-  text: string
-  start: number
-  end: number
-  type: 'word' | 'spacing' | 'audio_event'
-  speaker_id: string
-}
-
-interface TranscriptionData {
-  language_code: string
-  language_probability: number
-  text: string
-  words: TranscriptionWord[]
-}
-
 export default function AudioRecorder() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
-  const [transcriptions, setTranscriptions] = useState<TranscriptionData[]>([])
-  const [summary, setSummary] = useState<string | null>(null)
-  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [transcriptFilepath, setTranscriptFilepath] = useState<string | null>(null)
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const scriptNodeRef = useRef<ScriptProcessorNode | null>(null)
@@ -45,8 +30,8 @@ export default function AudioRecorder() {
 
       // Reset buffers & UI state
       pcmDataRef.current = []
-      setTranscriptions([])
-      setSummary(null)
+      setTranscriptFilepath(null)
+      setAnalysisResult(null)
       setError(null)
 
       // Acquire mic and hook into Web Audio
@@ -132,28 +117,38 @@ export default function AudioRecorder() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const handleSummarize = async () => {
-    if (transcriptions.length === 0) return
-    setIsSummarizing(true)
+  const handleAnalyze = async () => {
+    if (!transcriptFilepath) {
+        setError("No transcript available to analyze. Please record audio first.")
+        return
+    }
+    setIsAnalyzing(true)
     setError(null)
-    setSummary(null)
+    setAnalysisResult(null)
     try {
       const response = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcripts: transcriptions.map(t => ({ text: t.text })) }),
+        body: JSON.stringify({ transcript_filepath: transcriptFilepath }),
       })
       const data = await response.json()
       if (response.ok) {
-        setSummary(data.summary)
+        if (data.summary) {
+            setAnalysisResult(`Summary: ${data.summary}`)
+        } else if (data.result) {
+            setAnalysisResult(`Result: ${data.result}`)
+        } else {
+            setAnalysisResult(`Analysis complete: ${JSON.stringify(data)}`)
+            console.warn("Unexpected response structure from /api/summarize:", data)
+        }
       } else {
-        setError(data.error || 'Summarization failed')
+        setError(data.error || 'Analysis failed')
       }
     } catch (e: any) {
-      console.error('Summarization error:', e)
-      setError(`Summarization error: ${e.message}`)
+      console.error('Analysis error:', e)
+      setError(`Analysis error: ${e.message}`)
     } finally {
-      setIsSummarizing(false)
+      setIsAnalyzing(false)
     }
   }
 
@@ -195,11 +190,22 @@ export default function AudioRecorder() {
     try {
       const res = await fetch('/api/save-audio', { method: 'POST', body: formData })
       const data = await res.json()
-      if (data.transcription) setTranscriptions(prev => [...prev, data.transcription])
-      else if (data.error) setError(`Transcription Error: ${data.error}`)
+      if (res.ok && data.transcript_filepath) {
+        setTranscriptFilepath(data.transcript_filepath)
+        console.log("Transcript saved to:", data.transcript_filepath)
+        setError(null)
+      } else {
+        const errorMessage = data.error || `Server responded with status ${res.status}`
+        setError(`Transcription Error: ${errorMessage}`)
+        console.error("Transcription error response:", data)
+      }
     } catch (e: any) {
       console.error('Error sending WAV chunk:', e)
-      setError(`Operation failed: ${e.message}`)
+      if (e instanceof TypeError && e.message.includes('JSON')) {
+          setError('Operation failed: Server sent an invalid response.')
+      } else {
+          setError(`Operation failed: ${e.message}`)
+      }
     }
   }
 
@@ -270,78 +276,24 @@ export default function AudioRecorder() {
         </div>
       )}
 
-      {/* Summarize Button - Only show if there are transcriptions */}
-      {transcriptions.length > 0 && (
-        <button
-          onClick={handleSummarize}
-          disabled={isSummarizing}
-          className={`px-6 py-2 rounded-full text-white transition-colors ${isSummarizing 
-            ? 'bg-gray-400 cursor-not-allowed' 
-            : 'bg-green-500 hover:bg-green-600'}`}
-        >
-          {isSummarizing ? 'Summarizing...' : 'Summarize Conversation'}
-        </button>
-      )}
-
-      {/* Display summary */}
-      {summary && (
-        <div className="w-full bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg border border-blue-100 dark:border-blue-800">
-          <h3 className="text-xl font-semibold mb-3 text-blue-900 dark:text-blue-100">Summary</h3>
-          <p className="text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{summary}</p>
+      {/* Action Buttons (only show Analyze when not recording and transcript exists) */}
+      {!isRecording && transcriptFilepath && (
+        <div className="flex space-x-4 mt-6">
+          <button
+            onClick={handleAnalyze}
+            disabled={isAnalyzing}
+            className="px-5 py-2 rounded-md bg-green-500 text-white font-medium hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out"
+          >
+            {isAnalyzing ? 'Analyzing...' : 'Analyze Transcript'}
+          </button>
         </div>
       )}
 
-      {/* Transcriptions Display */}
-      {transcriptions.length > 0 && (
-        <div className="w-full">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Transcript</h3>
-          <div className="space-y-4">
-            {transcriptions.map((transcription, tIndex) => {
-              const wordSegments = transcription.words.filter(w => w.type === 'word');
-              if (wordSegments.length === 0) return null;
-              // Group words into segments by speaker
-              const segments: { speaker: string; words: typeof wordSegments }[] = [];
-              let currentSpeaker = wordSegments[0].speaker_id;
-              let currentWords = [wordSegments[0]];
-              wordSegments.slice(1).forEach(w => {
-                if (w.speaker_id === currentSpeaker) {
-                  currentWords.push(w);
-                } else {
-                  segments.push({ speaker: currentSpeaker, words: currentWords });
-                  currentSpeaker = w.speaker_id;
-                  currentWords = [w];
-                }
-              });
-              segments.push({ speaker: currentSpeaker, words: currentWords });
-              // Render each speaker segment
-              return segments.map((seg, sIndex) => {
-                const startSec = Math.floor(seg.words[0].start);
-                const endSec = Math.ceil(seg.words[seg.words.length - 1].end);
-                const speakerLabel = seg.speaker.replace('speaker_', 'Speaker ');
-                const text = seg.words.map(w => w.text).join(' ');
-                
-                // Map speaker_ids to different colors consistently
-                const speakerColorClasses = [
-                  'bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800',
-                  'bg-green-50 dark:bg-green-900/30 border-green-100 dark:border-green-800',
-                  'bg-purple-50 dark:bg-purple-900/30 border-purple-100 dark:border-purple-800',
-                  'bg-amber-50 dark:bg-amber-900/30 border-amber-100 dark:border-amber-800',
-                ];
-                const colorIndex = parseInt(seg.speaker.replace(/\D/g, '')) % speakerColorClasses.length;
-                const colorClass = speakerColorClasses[colorIndex];
-                
-                return (
-                  <div key={`${tIndex}-${sIndex}`} className={`p-4 rounded-lg border ${colorClass}`}>
-                    <div className="flex justify-between text-sm">
-                      <div className="text-gray-500">{formatTime(startSec)} - {formatTime(endSec)}</div>
-                      <div className="font-medium">{speakerLabel}</div>
-                    </div>
-                    <div className="mt-2 text-gray-800 dark:text-gray-100">{text}</div>
-                  </div>
-                );
-              });
-            })}
-          </div>
+      {/* Analysis Result Display */}
+      {analysisResult && (
+        <div className="mt-6 w-full p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
+          <h3 className="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-100">Analysis Result</h3>
+          <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{analysisResult}</p>
         </div>
       )}
     </div>
