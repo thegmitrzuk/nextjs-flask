@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, ChangeEvent, useEffect } from 'react';
+import { useState, ChangeEvent, useEffect, Dispatch, SetStateAction } from 'react';
 import mammoth from 'mammoth';
 
-// Remove onAgendaSubmit from props interface
-// interface AgendaSaverProps {
-//   onAgendaSubmit: () => void;
-// }
+// Define props for controlled component
+interface AgendaSaverProps {
+  agendaText: string;
+  onAgendaChange: (text: string) => void;
+  // Add other props if needed, e.g., to pass status up
+}
 
-// Remove onAgendaSubmit from function signature
-export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
-  const [agendaText, setAgendaText] = useState('');
+export default function AgendaSaver({ agendaText, onAgendaChange }: AgendaSaverProps) {
   const [statusMessage, setStatusMessage] = useState('');
   // State to track if the user is currently editing the agenda
   const [isEditingAgenda, setIsEditingAgenda] = useState(true); 
@@ -73,14 +73,13 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
          // Handle case where file doesn't exist (e.g., 404)
          if(response.status === 404) {
             setStatusMessage('No saved agenda found. You can start typing a new one.');
-            setAgendaText(''); // Clear text if no agenda found
             setAgendaExistsOnServer(false);
          } else {
             throw new Error(`HTTP error! status: ${response.status}`);
          }
       } else {
         const data = await response.json();
-        setAgendaText(data.text || ''); 
+        onAgendaChange(data.text || ''); 
         setStatusMessage('Saved agenda loaded.');
         setAgendaExistsOnServer(true);
       }
@@ -88,7 +87,7 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
     } catch (error) {
       console.error("Error loading agenda:", error);
       setStatusMessage('Failed to load saved agenda.');
-      setAgendaText(''); // Clear text on error
+      onAgendaChange(''); // Clear text on error
       setIsEditingAgenda(true); // Allow editing even on error
       setAgendaExistsOnServer(false); // Assume non-existent on error
     }
@@ -107,7 +106,6 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
       return;
     }
 
-    setAgendaText(''); 
     setStatusMessage('Processing file...'); 
     setIsEditingAgenda(true); // Ensure we are in editing mode when file is chosen
     setAgendaExistsOnServer(false); // Loading a file means it's not the *saved* server version
@@ -117,7 +115,7 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
         const reader = new FileReader();
         reader.onload = (e) => {
           const text = e.target?.result as string;
-          setAgendaText(text);
+          onAgendaChange(text);
           setStatusMessage('Text file loaded successfully. Click Save Agenda.');
         };
         reader.onerror = () => { throw new Error('Failed to read text file.'); };
@@ -129,7 +127,7 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
               if (!arrayBuffer) throw new Error('Could not read .docx file.');
               setStatusMessage('Processing .docx file...');
               const result = await mammoth.extractRawText({ arrayBuffer });
-              setAgendaText(result.value);
+              onAgendaChange(result.value);
               setStatusMessage('.docx file content loaded successfully. Click Save Agenda.');
           };
           reader.onerror = () => { throw new Error('Failed to read file for .docx processing.'); };
@@ -147,13 +145,13 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
               throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
           }
           const result = await response.json();
-          setAgendaText(result.text || '');
+          onAgendaChange(result.text || '');
           setStatusMessage(result.message || 'PDF processed successfully. Click Save Agenda.');
       }
     } catch (error) {
         console.error("Error processing file:", error);
         setStatusMessage(`Failed to process file: ${error instanceof Error ? error.message : String(error)}`);
-        setAgendaText(''); // Clear text area on error
+        onAgendaChange(''); // Clear text area on error
     } finally {
          event.target.value = ''; // Clear the file input
     }
@@ -177,7 +175,7 @@ export default function AgendaSaver(/*{ onAgendaSubmit }: AgendaSaverProps*/) {
               id="agenda-input"
               rows={10}
               value={agendaText}
-              onChange={(e) => setAgendaText(e.target.value)}
+              onChange={(e) => onAgendaChange(e.target.value)}
               placeholder="Write down agenda here or upload a file (.txt, .docx, .pdf)..."
               className="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500 mb-4"
             />

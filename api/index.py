@@ -9,6 +9,12 @@ import asyncio  # added for event loop management
 import re  # add with other imports
 from pypdf import PdfReader # Import PdfReader from pypdf
 import io # To handle file stream
+# Email sending imports
+import smtplib
+import logging
+from email.message import EmailMessage
+# Consider adding a web search library if needed for Concept Explainer
+# from duckduckgo_search import DDGS # Example library
 
 load_dotenv()
 
@@ -16,6 +22,70 @@ app = Flask(__name__)
 
 ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/speech-to-text"
+# Add OPENAI_API_KEY check, as Agents SDK requires it
+if not os.getenv('OPENAI_API_KEY'):
+    app.logger.warning("OPENAI_API_KEY environment variable not set. Agents SDK may not function.")
+
+# Configure logging for email sending
+logging.basicConfig(level=logging.INFO)
+
+# --- Email Sending Function ---
+def send_email(recipient_email: str, subject: str, body: str) -> bool:
+    """Sends an email using Gmail SMTP.
+
+    Requires GMAIL_SENDER_EMAIL and GMAIL_APP_PASSWORD environment variables.
+    Uses an App Password for Gmail authentication.
+
+    Args:
+        recipient_email: The email address of the recipient.
+        subject: The subject line of the email.
+        body: The plain text body of the email.
+
+    Returns:
+        True if the email was sent successfully, False otherwise.
+    """
+    sender_email = os.getenv("GMAIL_SENDER_EMAIL")
+    app_password = os.getenv("GMAIL_APP_PASSWORD") # Use an App Password
+
+    if not sender_email or not app_password:
+        logging.error("Gmail sender email or app password not found in environment variables (GMAIL_SENDER_EMAIL, GMAIL_APP_PASSWORD).")
+        return False
+
+    msg = EmailMessage()
+    msg["From"] = sender_email
+    msg["To"] = recipient_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    try:
+        # Connect to Gmail's SSL SMTP server
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(sender_email, app_password)
+            smtp.send_message(msg)
+            logging.info(f"Email sent successfully to {recipient_email}")
+            return True
+    except smtplib.SMTPAuthenticationError:
+        logging.error("SMTP Authentication Error: Check sender email and app password.")
+        return False
+    except smtplib.SMTPException as e:
+        logging.error(f"SMTP Error occurred: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"An unexpected error occurred while sending email: {e}")
+        return False
+
+# --- Utility Function for Running Agents ---
+def run_agent_sync(agent, prompt):
+    """Helper function to run an agent synchronously."""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = Runner.run_sync(agent, prompt)
+        loop.close()
+        return result.final_output.strip()
+    except Exception as e:
+        app.logger.error(f"Error running agent {agent.name}: {e}")
+        raise  # Re-raise the exception to be handled by the endpoint
 
 @app.route("/api/save-agenda", methods=['POST'])
 def save_agenda():
@@ -240,48 +310,217 @@ def save_audio():
 
 @app.route("/api/summarize", methods=["POST"])
 def summarize_conversation():
-    # Attempt to read transcript from file first, fallback to request body
-    transcripts_file = os.path.join(os.path.dirname(__file__), 'recordings', 'transcript.txt')
-    if os.path.exists(transcripts_file):
-        with open(transcripts_file, "r", encoding="utf-8") as tf:
-            combined_text = tf.read()
-    else:
-        data = request.get_json(silent=True) or {}
-        transcripts = data.get('transcripts')
-        if not transcripts or not isinstance(transcripts, list):
-            return jsonify({"error": "No transcripts provided or invalid format"}), 400
-        combined_text = "\n\n".join([t.get('text', '') for t in transcripts])
+    data = request.get_json()
+    if not data or 'transcript_text' not in data:
+        return jsonify({"error": "Missing 'transcript_text' in request body"}), 400
+    
+    combined_text = data['transcript_text']
+
+    if not combined_text:
+         return jsonify({"summary": "No text provided to summarize."}) # Handle empty transcript
+
 
     # Create summarization agent
     agent = Agent(
         name="Summarizer",
         instructions=("You are an assistant that summarizes conversation transcripts. "
                       "Provide a concise summary in 2-3 sentences. "
+                      "Focus on the key topics and decisions made. " # Added more specific instruction
                       "Return only a JSON object with a single key 'summary'."),
     )
     try:
-        # Ensure a new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = Runner.run_sync(agent, combined_text)
-        # Close the loop after execution
-        loop.close()
-        # result from agent
-        raw_output = result.final_output.strip()
-        # Remove markdown code fences (```json ... ```)
-        summary_output = re.sub(r'^```(?:json)?\s*', '', raw_output)
+        raw_output = run_agent_sync(agent, combined_text)
+        # Remove markdown code fences (```json ... ```) if present
+        summary_output = re.sub(r'^```(?:json)?\s*', '', raw_output, flags=re.IGNORECASE)
         summary_output = re.sub(r'\s*```$', '', summary_output)
-        # Attempt to parse JSON
+        
+        # Attempt to parse JSON, fallback to raw output
         try:
             summary_json = json.loads(summary_output)
-            summary_text = summary_json.get('summary', summary_output)
-        except Exception:
-            # Fallback: use cleaned output
-            summary_text = summary_output
+            summary_text = summary_json.get('summary', summary_output) # Use raw if key missing
+        except json.JSONDecodeError:
+             # If it's not valid JSON but looks like a summary, use it directly
+             # Check if it seems like a reasonable summary (e.g., doesn't start with error messages)
+             if len(summary_output) > 10 and not summary_output.lower().startswith("error"):
+                 summary_text = summary_output
+             else:
+                 app.logger.warning(f"Summarizer returned non-JSON and non-summary output: {summary_output}")
+                 # Fallback to a generic message or the raw output depending on desired behavior
+                 summary_text = "Could not extract summary." # Or summary_output
+
         return jsonify({"summary": summary_text})
     except Exception as e:
         app.logger.error(f"Summarization failed: {e}")
-        return jsonify({"error": f"Summarization error: {e}"}), 500
+        # Provide a more specific error message if possible
+        return jsonify({"error": f"Summarization error: {str(e)}"}), 500
+
+@app.route("/api/get-prompts", methods=["POST"])
+def get_prompts():
+    """Agent to generate conversation prompts based on the transcript."""
+    data = request.get_json()
+    if not data or 'transcript_text' not in data:
+        return jsonify({"error": "Missing 'transcript_text' in request body"}), 400
+    
+    transcript_text = data['transcript_text']
+    if not transcript_text.strip():
+        return jsonify({"prompts": []}) # Return empty list if transcript is empty
+
+    agent = Agent(
+        name="ConversationPrompter",
+        instructions=("You are an AI assistant analyzing a conversation transcript. "
+                      "Based on the *latest* part of the conversation, suggest 1-2 open-ended questions or prompts "
+                      "to keep the discussion flowing or explore related topics. "
+                      "Focus on relevance to the most recent exchanges. "
+                      "Return ONLY a JSON object with a single key 'prompts' containing a list of strings (the prompts). "
+                      "Example: {\"prompts\": [\"What are the potential risks of that approach?\", \"Could you elaborate on the previous point?\"]}"),
+    )
+    try:
+        raw_output = run_agent_sync(agent, f"Current Transcript:\n{transcript_text}")
+        prompts_output = re.sub(r'^```(?:json)?\s*', '', raw_output, flags=re.IGNORECASE)
+        prompts_output = re.sub(r'\s*```$', '', prompts_output)
+
+        try:
+            prompts_json = json.loads(prompts_output)
+            prompts_list = prompts_json.get('prompts', [])
+            if not isinstance(prompts_list, list): # Ensure it's a list
+                prompts_list = []
+        except json.JSONDecodeError:
+            app.logger.warning(f"Prompter returned non-JSON output: {prompts_output}")
+            prompts_list = [] # Fallback to empty list
+
+        return jsonify({"prompts": prompts_list})
+    except Exception as e:
+        app.logger.error(f"Prompt generation failed: {e}")
+        return jsonify({"error": f"Prompt generation error: {str(e)}"}), 500
+
+@app.route("/api/get-current-agenda", methods=["POST"])
+def get_current_agenda():
+    """Agent to determine the current agenda item based on transcript and agenda."""
+    data = request.get_json()
+    if not data or 'transcript_text' not in data or 'agenda_text' not in data:
+        return jsonify({"error": "Missing 'transcript_text' or 'agenda_text' in request body"}), 400
+
+    transcript_text = data['transcript_text']
+    agenda_text = data['agenda_text']
+
+    if not transcript_text.strip() or not agenda_text.strip():
+        # If either is empty, we likely can't determine the item
+        return jsonify({"current_item": "Agenda or transcript not available."})
+
+    agent = Agent(
+        name="AgendaTracker",
+        instructions=("You are an AI assistant comparing a meeting agenda with the ongoing conversation transcript. "
+                      "Identify which specific item from the agenda is *most likely* being discussed *right now*, based on the latest part of the transcript. "
+                      "Consider keywords and topics mentioned recently. "
+                      "If the discussion seems to be between items or off-topic, state that. "
+                      "Return ONLY a JSON object with a single key 'current_item' containing a string describing the current focus (e.g., the agenda item text, 'Discussion seems off-topic', 'Transitioning between items')."),
+        # Potentially provide the agenda format if known (e.g., uses numbering, bullet points)
+    )
+    try:
+        prompt = f"AGENDA:\n{agenda_text}\n\nTRANSCRIPT (latest part is most important):\n{transcript_text}"
+        raw_output = run_agent_sync(agent, prompt)
+        agenda_output = re.sub(r'^```(?:json)?\s*', '', raw_output, flags=re.IGNORECASE)
+        agenda_output = re.sub(r'\s*```$', '', agenda_output)
+
+        try:
+            agenda_json = json.loads(agenda_output)
+            current_item = agenda_json.get('current_item', "Could not determine current item.")
+        except json.JSONDecodeError:
+            app.logger.warning(f"AgendaTracker returned non-JSON output: {agenda_output}")
+            # Use the raw output if it seems descriptive
+            current_item = agenda_output if len(agenda_output) > 5 else "Could not determine current item."
+
+
+        return jsonify({"current_item": current_item})
+    except Exception as e:
+        app.logger.error(f"Agenda tracking failed: {e}")
+        return jsonify({"error": f"Agenda tracking error: {str(e)}"}), 500
+
+@app.route("/api/explain-concepts", methods=["POST"])
+def explain_concepts():
+    """Agent to identify complex concepts and (eventually) look them up."""
+    data = request.get_json()
+    if not data or 'transcript_text' not in data:
+        return jsonify({"error": "Missing 'transcript_text' in request body"}), 400
+
+    transcript_text = data['transcript_text']
+    if not transcript_text.strip():
+        return jsonify({"explanations": []}) # Return empty list if transcript is empty
+
+    # TODO: Integrate a real web search tool here.
+    # Example using a placeholder function tool:
+    # def web_search_tool(query: str) -> str:
+    #     """Searches the web for a given query and returns a summary."""
+    #     # Replace with actual web search implementation (e.g., using requests, BeautifulSoup, search API)
+    #     print(f"Simulating web search for: {query}")
+    #     if "gradient descent" in query.lower():
+    #         return "Gradient descent is an optimization algorithm used to minimize a function by iteratively moving in the direction of steepest descent."
+    #     elif "react hooks" in query.lower():
+    #         return "React Hooks are functions that let you 'hook into' React state and lifecycle features from function components."
+    #     else:
+    #         return f"No specific information found for '{query}' in this simulation."
+
+    agent = Agent(
+        name="ConceptExplainer",
+        instructions=("You are an AI assistant reading a conversation transcript. "
+                      "Identify 1-2 potentially complex technical terms, jargon, or concepts mentioned *recently* that might require explanation. "
+                      "For each concept identified, provide a very brief (1-sentence) definition or explanation suitable for someone unfamiliar with the term. "
+                      # "Use the provided web search tool if necessary to find definitions." # Add this when tool is integrated
+                      "Return ONLY a JSON object with a single key 'explanations' containing a list of objects, "
+                      "where each object has 'term' and 'explanation' keys. "
+                      "Example: {\"explanations\": [{\"term\": \"API\", \"explanation\": \"An Application Programming Interface allows different software systems to communicate.\"}, {\"term\": \"RPC\", \"explanation\": \"Remote Procedure Call enables a program to execute code on another computer.\"}]}"),
+        # tools=[web_search_tool] # Add the actual tool function here when implemented
+    )
+    try:
+        prompt = f"Analyze the following transcript for complex concepts:\n{transcript_text}"
+        raw_output = run_agent_sync(agent, prompt)
+        concepts_output = re.sub(r'^```(?:json)?\s*', '', raw_output, flags=re.IGNORECASE)
+        concepts_output = re.sub(r'\s*```$', '', concepts_output)
+
+        try:
+            concepts_json = json.loads(concepts_output)
+            explanations = concepts_json.get('explanations', [])
+            if not isinstance(explanations, list): # Ensure it's a list
+                 explanations = []
+            # Further validation: ensure list contains dicts with 'term' and 'explanation'
+            explanations = [item for item in explanations if isinstance(item, dict) and 'term' in item and 'explanation' in item]
+
+        except json.JSONDecodeError:
+            app.logger.warning(f"ConceptExplainer returned non-JSON output: {concepts_output}")
+            explanations = [] # Fallback to empty list
+
+        return jsonify({"explanations": explanations})
+    except Exception as e:
+        app.logger.error(f"Concept explanation failed: {e}")
+        return jsonify({"error": f"Concept explanation error: {str(e)}"}), 500
+
+@app.route("/api/send-summary-email", methods=["POST"])
+def send_summary_email():
+    """Endpoint to send the generated summary via email."""
+    data = request.get_json()
+    recipient_email = data.get('recipient_email')
+    summary_text = data.get('summary_text')
+
+    if not recipient_email or not summary_text:
+        return jsonify({"error": "Missing recipient email or summary text"}), 400
+
+    # Basic email validation (optional but recommended)
+    if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", recipient_email):
+         return jsonify({"error": "Invalid email format"}), 400
+
+    subject = "Meeting Summary"
+    # You might want to format the body more nicely
+    body = f"Here is the summary of the recent meeting:\n\n{summary_text}"
+
+    success = send_email(recipient_email, subject, body)
+
+    if success:
+        return jsonify({"message": "Email sent successfully"}), 200
+    else:
+        # Check if the error is due to missing config to provide a better client message
+        if not os.getenv("GMAIL_SENDER_EMAIL") or not os.getenv("GMAIL_APP_PASSWORD"):
+             return jsonify({"error": "Email configuration missing on the server."}), 500
+        return jsonify({"error": "Failed to send email. Check server logs."}), 500
 
 @app.route("/api/clear-transcript", methods=["POST"])
 def clear_transcript():

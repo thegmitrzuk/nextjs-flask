@@ -17,18 +17,23 @@ interface TranscriptionData {
   words: TranscriptionWord[]
 }
 
-// Define props to accept children
+// Define props to accept children and callback
 interface AudioRecorderProps {
   children?: ReactNode; // Make children optional
+  onTranscriptUpdate?: (transcript: string) => void; // Callback for transcript changes
 }
 
-export default function AudioRecorder({ children }: AudioRecorderProps) {
+export default function AudioRecorder({ children, onTranscriptUpdate }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [transcriptions, setTranscriptions] = useState<TranscriptionData[]>([])
   const [summary, setSummary] = useState<string | null>(null)
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showEmailInput, setShowEmailInput] = useState(false)
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [emailStatus, setEmailStatus] = useState<string | null>(null)
+  const [lastSentTranscriptLength, setLastSentTranscriptLength] = useState(0)
   const audioContextRef = useRef<AudioContext | null>(null)
   const scriptNodeRef = useRef<ScriptProcessorNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -60,6 +65,8 @@ export default function AudioRecorder({ children }: AudioRecorderProps) {
       setTranscriptions([])
       setSummary(null)
       setError(null)
+      setShowEmailInput(false)
+      setEmailStatus(null)
 
       // Acquire mic and hook into Web Audio
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -158,23 +165,66 @@ export default function AudioRecorder({ children }: AudioRecorderProps) {
     setIsSummarizing(true)
     setError(null)
     setSummary(null)
+    setShowEmailInput(false)
+    setEmailStatus(null)
     try {
+      // Combine transcriptions into a single string
+      const combinedText = transcriptions.map(t => t.text).join('\n\n'); 
+      
       const response = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcripts: transcriptions.map(t => ({ text: t.text })) }),
+        body: JSON.stringify({ transcript_text: combinedText }), 
       })
       const data = await response.json()
       if (response.ok) {
         setSummary(data.summary)
+        setShowEmailInput(true)
       } else {
         setError(data.error || 'Summarization failed')
+        setShowEmailInput(false)
       }
     } catch (e: any) {
       console.error('Summarization error:', e)
       setError(`Summarization error: ${e.message}`)
+      setShowEmailInput(false)
     } finally {
       setIsSummarizing(false)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    if (!summary || !recipientEmail) {
+      setEmailStatus("Recipient email and summary are required.")
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      setEmailStatus("Please enter a valid email address.")
+      return
+    }
+
+    setEmailStatus('Sending...')
+    try {
+      const response = await fetch('/api/send-summary-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          recipient_email: recipientEmail,
+          summary_text: summary 
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setEmailStatus(`Email successfully sent to ${recipientEmail}`)
+        setShowEmailInput(false)
+        setRecipientEmail('')
+      } else {
+        setEmailStatus(`Failed to send email: ${data.error || 'Unknown server error'}`)
+      }
+    } catch (error: any) {
+      console.error("Email sending error:", error);
+      setEmailStatus(`Failed to send email: ${error.message}`)
     }
   }
 
@@ -216,7 +266,19 @@ export default function AudioRecorder({ children }: AudioRecorderProps) {
     try {
       const res = await fetch('/api/save-audio', { method: 'POST', body: formData })
       const data = await res.json()
-      if (data.transcription) setTranscriptions(prev => [...prev, data.transcription])
+      if (data.transcription) {
+        setTranscriptions(prev => {
+          const newTranscriptions = [...prev, data.transcription];
+          // Combine text after state update
+          const combinedText = newTranscriptions.map(t => t.text).join('\n\n');
+          // Call callback if transcript has actually changed
+          if (onTranscriptUpdate && combinedText.length > lastSentTranscriptLength) {
+            onTranscriptUpdate(combinedText);
+            setLastSentTranscriptLength(combinedText.length);
+          }
+          return newTranscriptions;
+        });
+      }
       else if (data.error) setError(`Transcription Error: ${data.error}`)
     } catch (e: any) {
       console.error('Error sending WAV chunk:', e)
@@ -314,6 +376,44 @@ export default function AudioRecorder({ children }: AudioRecorderProps) {
         <div className="w-full bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg border border-blue-100 dark:border-blue-800">
           <h3 className="text-xl font-semibold mb-3 text-blue-900 dark:text-blue-100">Summary</h3>
           <p className="text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{summary}</p>
+        </div>
+      )}
+
+      {/* Email Input Section - Shown after summary */}
+      {showEmailInput && (
+        <div className="w-full mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg shadow-inner">
+          <label htmlFor="recipient-email" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+            Send Summary To:
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="email"
+              id="recipient-email"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              placeholder="Enter recipient email address"
+              className="flex-grow p-2 border border-gray-300 rounded-md dark:bg-gray-600 dark:border-gray-500 dark:text-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              onClick={handleSendEmail}
+              disabled={!recipientEmail || emailStatus === 'Sending...'}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {emailStatus === 'Sending...' ? 'Sending...' : 'Send Email'}
+            </button>
+          </div>
+          {/* Email Status Message */}
+          {emailStatus && (
+            <p className={`mt-3 text-center text-sm ${
+              emailStatus.includes('Failed') || emailStatus.includes('required') || emailStatus.includes('valid')
+                ? 'text-red-600 dark:text-red-400' 
+                : emailStatus.includes('successfully') 
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-gray-600 dark:text-gray-400' // For 'Sending...'
+            }`}>
+              {emailStatus}
+            </p>
+          )}
         </div>
       )}
 
