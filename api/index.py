@@ -27,6 +27,29 @@ def add_numbers():
     result = num1 + num2
     return jsonify({"result": result})
 
+@app.route("/api/save-agenda", methods=['POST'])
+def save_agenda():
+    data = request.get_json()
+    text_content = data.get('text')
+
+    if text_content is None:
+        return jsonify({'error': 'No text content provided'}), 400
+
+    # Ensure agenda.txt is saved relative to the api directory or a designated data directory
+    # Saving directly in the root of a serverless function's temp filesystem might be unreliable.
+    # Consider using a more persistent storage or a dedicated data directory if needed.
+    file_path = os.path.join(os.path.dirname(__file__), 'agenda.txt')
+
+    try:
+        # Use 'w' to overwrite the file each time
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(text_content + '\n') # Write content (removed extra newline)
+        app.logger.info(f"Agenda saved to {file_path} (overwritten)")
+        return jsonify({'message': f'Agenda saved successfully'}), 200 # Simplified message
+    except Exception as e:
+        app.logger.error(f"Error writing to file {file_path}: {e}")
+        return jsonify({'error': f'Failed to save agenda: {e}'}), 500
+
 @app.route("/api/save-audio", methods=['POST'])
 def save_audio():
     if not ELEVENLABS_API_KEY:
